@@ -1,0 +1,119 @@
+這份程式碼已經幫你加上了**淺顯易懂的中文註解**。
+
+這些註解主要解釋了三個重點：
+
+1. **為什麼要設 `K_VALUE`？** (為了抵銷旋轉造成的放大)
+2. **`>>>` 是什麼？** (用移位來代替除法，這是 CORDIC 省資源的關鍵)
+3. **狀態機在做什麼？** (待機 -> 算 12 次 -> 完成)
+
+```verilog
+module cordic (
+    input wire clk,                    // 時脈訊號 (Clock)
+    input wire rst_n,                  // 重置訊號 (Active Low Reset，低電位動作)
+    input wire start,                  // 啟動訊號 (給一個脈衝就開始算)
+    input wire signed [15:0] theta_in, // 輸入角度 (格式 Q2.14：2位整數，14位小數)
+    output reg signed [15:0] cos_out,  // 輸出 Cos 結果 (格式 Q2.14)
+    output reg signed [15:0] sin_out,  // 輸出 Sin 結果 (格式 Q2.14)
+    output reg done                    // 完成訊號 (算完會變成 1)
+);
+
+    // --- 參數設定 ---
+    parameter ITERATIONS = 12; // 設定迭代次數為 12 次 (次數越多越準，但算越久)
+    
+    // --- 初始縮放因子 (Scaling Factor) ---
+    // CORDIC 旋轉過程會把數值放大約 1.647 倍。
+    // 為了讓最後結果正確 (半徑=1)，我們一開始就要先乘上 1/1.647 ≈ 0.607。
+    // 0.60725 * 2^14 (Q2.14格式) ≈ 9949
+    localparam signed [15:0] K_VALUE = 16'd9949; 
+
+    // --- 狀態機定義 ---
+    // 0: 閒置發呆, 1: 拼命計算, 2: 算完交卷
+    localparam S_IDLE = 0, S_CALC = 1, S_DONE = 2;
+    reg [1:0] state; // 紀錄目前在哪個狀態
+    
+    // --- 運算用的暫存器 ---
+    reg signed [15:0] x, y, z; // x, y 是座標，z 是剩餘要轉的角度
+    reg [3:0] i;               // 計數器 (數目前跑到第幾次迭代)
+
+    // --- 角度查找表 (Atan Table) ---
+    // 這裡存的是每次旋轉的「微小角度值」。
+    [cite_start]// 數值是根據 Q2.14 格式算出來的 (例如 45度 對應 12868) [cite: 180]
+    reg signed [15:0] atan_table [0:11];
+
+    initial begin
+        atan_table[0]  = 16'd12868; // atan(2^0)  = 45.0 度
+        atan_table[1]  = 16'd7596;  // atan(2^-1) = 26.6 度
+        atan_table[2]  = 16'd4013;  // atan(2^-2) = 14.0 度
+        atan_table[3]  = 16'd2037;  // ...依此類推
+        atan_table[4]  = 16'd1022;
+        atan_table[5]  = 16'd511;
+        atan_table[6]  = 16'd255;
+        atan_table[7]  = 16'd127;
+        atan_table[8]  = 16'd63;
+        atan_table[9]  = 16'd31;
+        atan_table[10] = 16'd15;
+        atan_table[11] = 16'd7;
+    end
+
+    // --- 主程式邏輯 (時序電路) ---
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            // 如果按下 Reset，全部清空歸零
+            state <= S_IDLE;
+            x <= 0; y <= 0; z <= 0;
+            cos_out <= 0; sin_out <= 0;
+            done <= 0;
+            i <= 0;
+        end else begin
+            case (state)
+                // [狀態 0] 閒置狀態：等待 Start 訊號
+                S_IDLE: begin
+                    done <= 0; // 先把完成訊號關掉
+                    if (start) begin
+                        // 收到 Start！載入初始值
+                        x <= K_VALUE;   // X 設為 0.607 (這是關鍵！不能設為 1)
+                        y <= 0;         // Y 設為 0
+                        z <= theta_in;  // Z 載入我們要計算的目標角度
+                        i <= 0;         // 計數器歸零
+                        state <= S_CALC;// 進入計算狀態
+                    end
+                end
+
+                // [狀態 1] 計算狀態：執行 12 次 CORDIC 迭代
+                S_CALC: begin
+                    if (i == ITERATIONS) begin
+                        // 如果數到 12，代表算完了
+                        state <= S_DONE;
+                    end else begin
+                        [cite_start]// CORDIC 核心演算法開始 [cite: 186-188]
+                        // 判斷 Z (剩餘角度) 是正還是負？
+                        if (z >= 0) begin
+                            // 角度 > 0，順時針轉 (Sign = 1)
+                            [cite_start]// ">>> i" 代表除以 2 的 i 次方 (移位代替除法) [cite: 368]
+                            x <= x - (y >>> i); 
+                            y <= y + (x >>> i);
+                            z <= z - atan_table[i]; // 扣掉轉過的角度
+                        end else begin
+                            // 角度 < 0，逆時針轉 (Sign = -1)
+                            x <= x + (y >>> i);
+                            y <= y - (x >>> i);
+                            z <= z + atan_table[i]; // 補回轉過的角度
+                        end
+                        i <= i + 1; // 準備下一次迭代
+                    end
+                end
+
+                // [狀態 2] 完成狀態：輸出結果
+                S_DONE: begin
+                    cos_out <= x;   // 算完的 X 就是 Cos
+                    sin_out <= y;   // 算完的 Y 就是 Sin
+                    done <= 1;      // 拉高 Done 訊號，告訴外面算好了
+                    state <= S_IDLE;// 回到閒置狀態，等待下一次 Start
+                end
+            endcase
+        end
+    end
+
+endmodule
+
+```
