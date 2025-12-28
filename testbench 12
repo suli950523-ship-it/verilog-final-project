@@ -1,0 +1,241 @@
+`timescale 1ns / 1ps
+
+module tb_cordic_all_angles;
+
+    reg clk;
+    reg rst_n;
+    reg start;
+    reg signed [15:0] theta_in;
+    
+    wire signed [15:0] cos_out;
+    wire signed [15:0] sin_out;
+    wire done;
+
+    // ?? 20 ??????
+    cordic #(.ITERATIONS(20)) uut (
+        .clk(clk), .rst_n(rst_n), .start(start), .theta_in(theta_in),
+        .cos_out(cos_out), .sin_out(sin_out), .done(done)
+    );
+
+    always #5 clk = ~clk;
+
+    initial begin
+        clk = 0; rst_n = 0; start = 0; theta_in = 0;
+        #20 rst_n = 1;
+
+        // ============================================================
+        // ???????????? (+/- 30, +/- 60)
+        // ============================================================
+
+        // --- Case 1: +30? ---
+        #50;
+        theta_in = 16'd8577; 
+        start = 1; #10 start = 0;
+        wait(done); #1;
+        $display("--------------------------------------------------");
+        $display("Case 1: +30 deg (Direct Input)");
+        $display("Result: Cos=%d (Exp +), Sin=%d (Exp +)", cos_out, sin_out);
+
+        // --- Case 2: -30? ---
+        // ?????? (-8577)
+        // Verilog ????? 2's complement
+        #50;
+        theta_in = -16'd8577; 
+        start = 1; #10 start = 0;
+        wait(done); #1;
+        $display("Case 2: -30 deg (Direct Input)");
+        $display("Result: Cos=%d (Exp +), Sin=%d (Exp -)", cos_out, sin_out);
+
+        // --- Case 3: +60? ---
+        #50;
+        theta_in = 16'd17154;
+        start = 1; #10 start = 0;
+        wait(done); #1;
+        $display("Case 3: +60 deg (Direct Input)");
+        $display("Result: Cos=%d (Exp +), Sin=%d (Exp +)", cos_out, sin_out);
+
+        // --- Case 4: -60? ---
+        #50;
+        theta_in = -16'd17154;
+        start = 1; #10 start = 0;
+        wait(done); #1;
+        $display("Case 4: -60 deg (Direct Input)");
+        $display("Result: Cos=%d (Exp +), Sin=%d (Exp -)", cos_out, sin_out);
+
+        // ============================================================
+        // ???????????? (+/- 120, +/- 150)
+        // ???Input Reference Angle -> CORDIC -> Invert Cos Result
+        // ============================================================
+
+        // --- Case 5: +120? (????) ---
+        // ???: +60? (17154)
+        // ???: Cos(-0.5), Sin(+0.866)
+        // CORDIC(60) ??: Cos(+0.5), Sin(+0.866)
+        // ??: Cos ??
+        #50;
+        theta_in = 16'd17154; 
+        start = 1; #10 start = 0;
+        wait(done); #1;
+        $display("--------------------------------------------------");
+        $display("Case 5: +120 deg (Simulated by +60)");
+        $display("CORDIC Out: Cos=%d, Sin=%d", cos_out, sin_out);
+        $display("Final Logic: Cos should be NEGATIVE -> %d", -cos_out);
+
+        // --- Case 6: -120? (????) ---
+        // ???: -60? (-17154)
+        // ???: Cos(-0.5), Sin(-0.866)
+        // CORDIC(-60) ??: Cos(+0.5), Sin(-0.866)
+        // ??: Cos ??
+        #50;
+        theta_in = -16'd17154; 
+        start = 1; #10 start = 0;
+        wait(done); #1;
+        $display("Case 6: -120 deg (Simulated by -60)");
+        $display("CORDIC Out: Cos=%d, Sin=%d", cos_out, sin_out);
+        $display("Final Logic: Cos should be NEGATIVE -> %d", -cos_out);
+
+        // --- Case 7: +150? (????) ---
+        // ???: +30? (8577)
+        // ??: Cos ??
+        #50;
+        theta_in = 16'd8577; 
+        start = 1; #10 start = 0;
+        wait(done); #1;
+        $display("Case 7: +150 deg (Simulated by +30)");
+        $display("CORDIC Out: Cos=%d, Sin=%d", cos_out, sin_out);
+        $display("Final Logic: Cos should be NEGATIVE -> %d", -cos_out);
+
+        // --- Case 8: -150? (????) ---
+        // ???: -30? (-8577)
+        // ??: Cos ??
+        #50;
+        theta_in = -16'd8577; 
+        start = 1; #10 start = 0;
+        wait(done); #1;
+        $display("Case 8: -150 deg (Simulated by -30)");
+        $display("CORDIC Out: Cos=%d, Sin=%d", cos_out, sin_out);
+        $display("Final Logic: Cos should be NEGATIVE -> %d", -cos_out);
+
+        #100 $stop;
+    end
+endmodule`timescale 1ns / 1ps
+
+module tb_cordic_all_angles;
+
+    reg clk;
+    reg rst_n;
+    reg start;
+    reg signed [15:0] theta_in;
+    
+    wire signed [15:0] cos_out;
+    wire signed [15:0] sin_out;
+    wire done;
+
+    // ?? 20 ??????
+    cordic #(.ITERATIONS(20)) uut (
+        .clk(clk), .rst_n(rst_n), .start(start), .theta_in(theta_in),
+        .cos_out(cos_out), .sin_out(sin_out), .done(done)
+    );
+
+    always #5 clk = ~clk;
+
+    initial begin
+        clk = 0; rst_n = 0; start = 0; theta_in = 0;
+        #20 rst_n = 1;
+
+        // ============================================================
+        // ???????????? (+/- 30, +/- 60)
+        // ============================================================
+
+        // --- Case 1: +30? ---
+        #50;
+        theta_in = 16'd8577; 
+        start = 1; #10 start = 0;
+        wait(done); #1;
+        $display("--------------------------------------------------");
+        $display("Case 1: +30 deg (Direct Input)");
+        $display("Result: Cos=%d (Exp +), Sin=%d (Exp +)", cos_out, sin_out);
+
+        // --- Case 2: -30? ---
+        // ?????? (-8577)
+        // Verilog ????? 2's complement
+        #50;
+        theta_in = -16'd8577; 
+        start = 1; #10 start = 0;
+        wait(done); #1;
+        $display("Case 2: -30 deg (Direct Input)");
+        $display("Result: Cos=%d (Exp +), Sin=%d (Exp -)", cos_out, sin_out);
+
+        // --- Case 3: +60? ---
+        #50;
+        theta_in = 16'd17154;
+        start = 1; #10 start = 0;
+        wait(done); #1;
+        $display("Case 3: +60 deg (Direct Input)");
+        $display("Result: Cos=%d (Exp +), Sin=%d (Exp +)", cos_out, sin_out);
+
+        // --- Case 4: -60? ---
+        #50;
+        theta_in = -16'd17154;
+        start = 1; #10 start = 0;
+        wait(done); #1;
+        $display("Case 4: -60 deg (Direct Input)");
+        $display("Result: Cos=%d (Exp +), Sin=%d (Exp -)", cos_out, sin_out);
+
+        // ============================================================
+        // ???????????? (+/- 120, +/- 150)
+        // ???Input Reference Angle -> CORDIC -> Invert Cos Result
+        // ============================================================
+
+        // --- Case 5: +120? (????) ---
+        // ???: +60? (17154)
+        // ???: Cos(-0.5), Sin(+0.866)
+        // CORDIC(60) ??: Cos(+0.5), Sin(+0.866)
+        // ??: Cos ??
+        #50;
+        theta_in = 16'd17154; 
+        start = 1; #10 start = 0;
+        wait(done); #1;
+        $display("--------------------------------------------------");
+        $display("Case 5: +120 deg (Simulated by +60)");
+        $display("CORDIC Out: Cos=%d, Sin=%d", cos_out, sin_out);
+        $display("Final Logic: Cos should be NEGATIVE -> %d", -cos_out);
+
+        // --- Case 6: -120? (????) ---
+        // ???: -60? (-17154)
+        // ???: Cos(-0.5), Sin(-0.866)
+        // CORDIC(-60) ??: Cos(+0.5), Sin(-0.866)
+        // ??: Cos ??
+        #50;
+        theta_in = -16'd17154; 
+        start = 1; #10 start = 0;
+        wait(done); #1;
+        $display("Case 6: -120 deg (Simulated by -60)");
+        $display("CORDIC Out: Cos=%d, Sin=%d", cos_out, sin_out);
+        $display("Final Logic: Cos should be NEGATIVE -> %d", -cos_out);
+
+        // --- Case 7: +150? (????) ---
+        // ???: +30? (8577)
+        // ??: Cos ??
+        #50;
+        theta_in = 16'd8577; 
+        start = 1; #10 start = 0;
+        wait(done); #1;
+        $display("Case 7: +150 deg (Simulated by +30)");
+        $display("CORDIC Out: Cos=%d, Sin=%d", cos_out, sin_out);
+        $display("Final Logic: Cos should be NEGATIVE -> %d", -cos_out);
+
+        // --- Case 8: -150? (????) ---
+        // ???: -30? (-8577)
+        // ??: Cos ??
+        #50;
+        theta_in = -16'd8577; 
+        start = 1; #10 start = 0;
+        wait(done); #1;
+        $display("Case 8: -150 deg (Simulated by -30)");
+        $display("CORDIC Out: Cos=%d, Sin=%d", cos_out, sin_out);
+        $display("Final Logic: Cos should be NEGATIVE -> %d", -cos_out);
+
+        #100 $stop;
+    end
+endmodule
