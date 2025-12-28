@@ -1,0 +1,106 @@
+module cordic (
+    input  wire clk,
+    input  wire rst_n,
+    input  wire start,
+    input  wire signed [15:0] theta_in,
+    output reg  signed [15:0] cos_out,
+    output reg  signed [15:0] sin_out,
+    output reg  done
+);
+
+    // --- ??? 1: ???????????? 16 ---
+    parameter ITERATIONS = 16; 
+    
+    // K = 0.60725 * 16384 = 9949 (12??16?? K ?? 16-bit ?????????)
+    localparam signed [15:0] K_VALUE = 16'd9949; 
+
+    localparam S_IDLE = 2'd0;
+    localparam S_CALC = 2'd1;
+    localparam S_DONE = 2'd2;
+
+    reg [1:0] state, next_state;
+    reg [4:0] i; // ??? 2: ???????? 5 bits (???? 16)
+    reg signed [15:0] x, y, z;
+    
+    // --- ??? 3: ?? Atan ?? 16 ? ---
+    reg signed [15:0] atan_table [0:15];
+
+    initial begin
+        atan_table[0]  = 16'd12868; // 45.0 deg
+        atan_table[1]  = 16'd7596;  // 26.6 deg
+        atan_table[2]  = 16'd4013;  // 14.0 deg
+        atan_table[3]  = 16'd2037;  
+        atan_table[4]  = 16'd1022;
+        atan_table[5]  = 16'd511;
+        atan_table[6]  = 16'd255;
+        atan_table[7]  = 16'd127;
+        atan_table[8]  = 16'd63;
+        atan_table[9]  = 16'd31;
+        atan_table[10] = 16'd15;
+        atan_table[11] = 16'd7;
+        // ????? (i=12~15)
+        atan_table[12] = 16'd4;     // atan(2^-12)
+        atan_table[13] = 16'd2;     // atan(2^-13)
+        atan_table[14] = 16'd1;     // atan(2^-14)
+        atan_table[15] = 16'd1;     // atan(2^-15) -> ?? 0??????????? 1
+    end
+
+    // --- ????? (????) ---
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) state <= S_IDLE;
+        else state <= next_state;
+    end
+
+    always @(*) begin
+        case (state)
+            S_IDLE: next_state = (start) ? S_CALC : S_IDLE;
+            S_CALC: next_state = (i == ITERATIONS - 1) ? S_DONE : S_CALC;
+            S_DONE: next_state = S_IDLE;
+            default: next_state = S_IDLE;
+        endcase
+    end
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            x <= 0; y <= 0; z <= 0; i <= 0;
+            cos_out <= 0; sin_out <= 0; done <= 0;
+        end else begin
+            case (state)
+                S_IDLE: begin
+                    done <= 0;
+                    i <= 0;
+                    if (start) begin
+                        x <= K_VALUE;
+                        y <= 0;
+                        z <= theta_in;
+                    end
+                end
+                S_CALC: begin
+                    if (z >= 0) begin
+                        x <= x - (y >>> i);
+                        y <= y + (x >>> i);
+                        z <= z - atan_table[i];
+                    end else begin
+                        x <= x + (y >>> i);
+                        y <= y - (x >>> i);
+                        z <= z + atan_table[i];
+                    end
+                    i <= i + 1;
+                end
+                S_DONE: begin
+                    cos_out <= x;
+                    sin_out <= y;
+                    done <= 1;
+                end
+            endcase
+        end
+    end
+endmodule
+
+
+
+
+
+
+
+
